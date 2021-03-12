@@ -416,10 +416,12 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-    //SHOW ALL TWILIO LOGGING
-    //[TwilioVideoSDK setLogLevel:TVILogLevelAll];
-    [TwilioVideoSDK setLogLevel:TVILogLevelError];
+    NSLog(@"[VOIPCALLKITPLUGIN][TwilioVideoViewController] viewDidLoad: [AVAudioSession sharedInstance].category:%@", [AVAudioSession sharedInstance].category);
+    NSLog(@"[VOIPCALLKITPLUGIN][TwilioVideoViewController] viewDidLoad: CURRENT: [AVAudioSession sharedInstance].mode:%@", [AVAudioSession sharedInstance].mode);
+    NSLog(@"[VOIPCALLKITPLUGIN][TwilioVideoViewController] viewDidLoad: CURRENT: [AVAudioSession sharedInstance].outputVolume:%f", [AVAudioSession sharedInstance].outputVolume);
+    NSLog(@"[VOIPCALLKITPLUGIN][TwilioVideoViewController] viewDidLoad: CURRENT: [AVAudioSession sharedInstance].currentRoute:\r%@", [AVAudioSession sharedInstance].currentRoute);
 
+    
     //----------------------------------------------------------------------------------------------
     //SPEAKERPHONE - speaker/ headset etc
     //----------------------------------------------------------------------------------------------
@@ -430,6 +432,16 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
     //  AVAudioSessionModeVideoChat (DEFAULTS ot Speaker ON)
     
     [self enableAudioRouteChangeObserver];
+
+    
+    
+    //----------------------------------------------------------------------------------------------
+    //TWILIO SDK LOGGING
+    //----------------------------------------------------------------------------------------------
+    //SHOW ALL TWILIO LOGGING
+    [TwilioVideoSDK setLogLevel:TVILogLevelAll];
+    //[TwilioVideoSDK setLogLevel:TVILogLevelError];
+
 
 
 
@@ -478,7 +490,9 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
             //--------------------------------------------------------------------------------------
             NSError *error_setAll = nil;
 
+            NSLog(@"[AUDIO][SET CATEGORY] BEFORE: AVAudioSessionMode:%@", [AVAudioSession sharedInstance].category);
             NSLog(@"[AUDIO][SET CATEGORY] BEFORE: AVAudioSessionMode:%@", [AVAudioSession sharedInstance].mode);
+          
 
             NSLog(@"[AUDIO][SET CATEGORY] Twiliosdk setCategory:PlayAndRecord mode:VoiceChat");
 
@@ -486,7 +500,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
             //AVAudioSessionCategoryOptionMixWithOthers - volume of ringing.mp3
             
             
-            NSLog(@"[AUDIO][SET CATEGORY]  [AVAudioSession sharedInstance].currentRoute:\r%@", [AVAudioSession sharedInstance].currentRoute);
+            NSLog(@"[AUDIO][SET CATEGORY] BEFORE setCategory:setMode:options - [AVAudioSession sharedInstance].currentRoute:\r%@", [AVAudioSession sharedInstance].currentRoute);
             
             
             //--------------------------------------------------------------------------------------
@@ -496,7 +510,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
             //--------------------------------------------------------------------------------------
             if (![[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayAndRecord
                                                          mode:AVAudioSessionModeVoiceChat
-                                                      options:AVAudioSessionCategoryOptionAllowBluetooth
+                                                      options:AVAudioSessionCategoryOptionAllowBluetooth | AVAudioSessionCategoryOptionAllowBluetoothA2DP
                                                         error:&error_setAll])
             {
                 //----------------------------------------------------------------------------------
@@ -511,10 +525,8 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
                 //----------------------------------------------------------------------------------
                 //SUCCESS
                 //----------------------------------------------------------------------------------
-                NSLog(@"AVAudioSession setCategory:options:mode:error: OK");
-
                 
-                NSLog(@"[viewDidLoad] [AVAudioSession sharedInstance].currentRoute:\r%@", [AVAudioSession sharedInstance].currentRoute);
+                NSLog(@"[AUDIO][SET CATEGORY] BEFORE setCategory:setMode:options - [AVAudioSession sharedInstance].currentRoute:\r%@", [AVAudioSession sharedInstance].currentRoute);
                 if([self isCurrentAudioRouteOutputSetToBluetooth])
                 {
                     NSLog(@"[viewDidLoad] isCurrentAudioRouteOutputSetToBluetooth: TRUE - DONT TURN ON SPEAKER");
@@ -637,6 +649,10 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
     // Disconnect and mic button will be displayed when client is connected to a room.
     self.micButton.hidden = YES;
 
+    //SWITCH_AUDIO - must call BEFORE - setup_button_states
+    //if bluetooth on when call starts - avAudioPickerView cant be null else you see blank space
+    [self placeVolumeIconOverButton];
+ 
     [self setup_button_states];
     
     // Customize button colors
@@ -672,12 +688,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
     //lee said only show remote user is muted - dont show icon if unmoted
     [self.imageViewInCallRemoteMicMuteState setHidden:TRUE];
     
-    //----------------------------------------------------------------------------------------------
-//SWITCH_AUDIO
-    [self placeVolumeIconOverButton];
-    
-    //----------------------------------------------------------------------------------------------
-}
+ }
 
 
 #pragma mark -
@@ -1838,6 +1849,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
     }
 }
 
+
 -(void)update_switchAudioButton_bluetooth{
     NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController.m] update_switchAudioButton_bluetooth:");
     
@@ -1846,21 +1858,68 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
     [self showiOSAudioPickerButton];
   
 }
+
+-(void)disableSwitchAudio{
+    if(self.viewAudioWrapper.hidden){
+        //EARPIECE/SPEAKER
+        [self.switchAudioButton setEnabled:FALSE];
+    }else{
+        //BLUETOOTH VISIBLE
+        if(NULL != self.mpVolumeView){
+            [self.mpVolumeView setUserInteractionEnabled:FALSE];
+            
+        }else{
+            NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController.m] mpVolumeView: is NULL");
+        }
+        if(NULL != self.avRoutePickerView){
+            [self.avRoutePickerView setUserInteractionEnabled:FALSE];
+            self.avRoutePickerView.tintColor = [UIColor grayColor];
+        }else{
+            NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController.m] disableSwitchAudio: is NULL");
+        }
+    }
+}
+-(void)enableSwitchAudio{
+    if(self.viewAudioWrapper.hidden){
+        //EARPIECE/SPEAKER
+        [self.switchAudioButton setEnabled:TRUE];
+    }else{
+        //BLUETOOTH VISIBLE
+        if(NULL != self.mpVolumeView){
+            [self.mpVolumeView setUserInteractionEnabled:TRUE];
+            self.avRoutePickerView.tintColor = [UIColor whiteColor];
+        }else{
+            NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController.m] mpVolumeView: is NULL");
+        }
+        
+        if(NULL != self.avRoutePickerView){
+            [self.avRoutePickerView setUserInteractionEnabled:TRUE];
+            
+        }else{
+            NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController.m] disableSwitchAudio: is NULL");
+        }
+    }
+}
+
 -(void)showEarpieceOrSpeakerButton{
     //SHOW TOGGLE earpiece/speaker
     [self.switchAudioButton setHidden:FALSE]; //show it
     [self.switchAudioButton setEnabled:TRUE]; //enable it
     
     //hide the IOS AUDIO PICKER BUTTON
-    [self.viewAudioWrapper setHidden:TRUE];
+    [self.viewAudioWrapper setHidden:TRUE]; //hide it
+
 }
+
 -(void)showiOSAudioPickerButton{
     //HIDE TOGGLE earpiece/speaker
-    [self.switchAudioButton setHidden:TRUE];
-    [self.switchAudioButton setEnabled:FALSE];
+    [self.switchAudioButton setHidden:TRUE]; //hide it
+    [self.switchAudioButton setEnabled:FALSE]; //disable it
     
     //SHOW AUDIO PICKER BUTTON
-    [self.viewAudioWrapper setHidden:FALSE];
+    //note in viewDidLoad I called placeVolumeIconOverButton before set_buttons state
+    //else viewAudioWrapper setHidden:TRUE just shows blank space
+    [self.viewAudioWrapper setHidden:FALSE]; //show it
 }
 
 #pragma mark -
@@ -3688,7 +3747,11 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
             //--------------------------------------------------------------------------------------
             [audioPlayer play];
             
+            //[self.viewAudioWrapper setHidden:TRUE];
+            [self disableSwitchAudio];
+            
 
+            
             //RELEASE - COMMENT OUT
             //SHOWS the audio levels for the mp3 - we had bug where volume suddenly dropped
             //caused by setCategory: called after play: called
@@ -3715,6 +3778,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
         [self log_debug:@"[AUDIO][dialing_sound_stop] >> [audioPlayer stop]"];
         
         [audioPlayer stop];
+        [self enableSwitchAudio];
         [self removeAudioLevelsMonitoringTimer];
     }else{
         [self log_error:@"[dialing_sound_stop] audioPlayer is NULL [audioPlayer stop] FAILED"];
