@@ -439,8 +439,8 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
     //TWILIO SDK LOGGING
     //----------------------------------------------------------------------------------------------
     //SHOW ALL TWILIO LOGGING
-    [TwilioVideoSDK setLogLevel:TVILogLevelAll];
-    //[TwilioVideoSDK setLogLevel:TVILogLevelError];
+    //[TwilioVideoSDK setLogLevel:TVILogLevelAll];
+    [TwilioVideoSDK setLogLevel:TVILogLevelError];
 
 
 
