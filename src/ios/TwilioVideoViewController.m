@@ -287,10 +287,10 @@ NSString *const CLOSED = @"CLOSED";
     //--------------------------------------------------------------------------
     //DEBUG
     //    BOOL state = [UIDevice currentDevice].proximityState;
-    //    NSString *msg = [NSString stringWithFormat:@"[TwilioVideoViewController.m] proximityStateDidChange:%d", state];
+    //    NSString *msg = [NSString stringWithFormat:@"[TwilioVideoViewController] proximityStateDidChange:%d", state];
     //    [self logMessage:msg];
-    //[TwilioVideoViewController.m] proximityStateDidChange:0
-    //[TwilioVideoViewController.m] proximityStateDidChange:1
+    //[TwilioVideoViewController] proximityStateDidChange:0
+    //[TwilioVideoViewController] proximityStateDidChange:1
     //--------------------------------------------------------------------------
     //VIDEO is ON  > MOVE PHONE TO EAR        > TURN VIDEO OFF
     //               MOVE PHONE AWAY FROM EAR > turn it back on
@@ -405,7 +405,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
 - (void)viewDidDisappear:(BOOL)animated {
     [super viewDidDisappear:animated];
     
-    NSLog(@"[VOIPVIDEOPLUGIN][CordovaCall.m] viewDidDisappear: ");
+    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] viewDidDisappear: ");
 }
 
 
@@ -416,12 +416,10 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-    NSLog(@"[VOIPCALLKITPLUGIN][TwilioVideoViewController] viewDidLoad: [AVAudioSession sharedInstance].category:%@", [AVAudioSession sharedInstance].category);
-    NSLog(@"[VOIPCALLKITPLUGIN][TwilioVideoViewController] viewDidLoad: CURRENT: [AVAudioSession sharedInstance].mode:%@", [AVAudioSession sharedInstance].mode);
-    NSLog(@"[VOIPCALLKITPLUGIN][TwilioVideoViewController] viewDidLoad: CURRENT: [AVAudioSession sharedInstance].outputVolume:%f", [AVAudioSession sharedInstance].outputVolume);
-    NSLog(@"[VOIPCALLKITPLUGIN][TwilioVideoViewController] viewDidLoad: CURRENT: [AVAudioSession sharedInstance].currentRoute:\r%@", [AVAudioSession sharedInstance].currentRoute);
+    //SHOW ALL TWILIO LOGGING
+    //[TwilioVideoSDK setLogLevel:TVILogLevelAll];
+    [TwilioVideoSDK setLogLevel:TVILogLevelError];
 
-    
     //----------------------------------------------------------------------------------------------
     //SPEAKERPHONE - speaker/ headset etc
     //----------------------------------------------------------------------------------------------
@@ -431,21 +429,14 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
     //  AVAudioSessionModeVoiceChat
     //  AVAudioSessionModeVideoChat (DEFAULTS ot Speaker ON)
     
+    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][viewDidLoad] [AVAudioSession sharedInstance].currentRoute:\r%@", [AVAudioSession sharedInstance].currentRoute);
+    
     [self enableAudioRouteChangeObserver];
-
-    
-    
-    //----------------------------------------------------------------------------------------------
-    //TWILIO SDK LOGGING
-    //----------------------------------------------------------------------------------------------
-    //SHOW ALL TWILIO LOGGING
-    //[TwilioVideoSDK setLogLevel:TVILogLevelAll];
-    [TwilioVideoSDK setLogLevel:TVILogLevelError];
-
 
 
 
 #pragma mark viewDidLoad - TwilioVideoSDK.audioDevice
+    
     //----------------------------------------------------------------------------------------------
     //TWILIO - OVERRIDE DEFAULT AUDIO
     //----------------------------------------------------------------------------------------------
@@ -457,7 +448,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
 
     //WebRTC does not allow updating the audio device once the media stack is created (i.e once a track is created or memory allocated for previously created room or connect option is not deleted). You should provide the audio device to SDK prior to creating the tracks
     if(TwilioVideoViewController.twilioAudioConfiguredOnce){
-        NSLog(@"[VOIPCALLKITPLUGIN][CordovaCall.m] endCall: TwilioVideoSDK.audioDevice is NOT NULL - dont set it again can cause crash");
+        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController]  endCall: TwilioVideoSDK.audioDevice is NOT NULL - dont set it again can cause crash");
     }else{
         //------------------------------------------------------------------------------------------
         //CONFIGURE TWILIO
@@ -529,7 +520,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
                 //SUCCESS
                 //----------------------------------------------------------------------------------
                 
-                NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController.m][viewDidLoad] [AVAudioSession sharedInstance].currentRoute:\r%@", [AVAudioSession sharedInstance].currentRoute);
+                NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][viewDidLoad] [AVAudioSession sharedInstance].currentRoute:\r%@", [AVAudioSession sharedInstance].currentRoute);
                 if([self isCurrentAudioRouteOutputSetToBluetooth])
                 {
                     NSLog(@"[viewDidLoad] isCurrentAudioRouteOutputSetToBluetooth: TRUE - DONT TURN ON SPEAKER");
@@ -537,23 +528,56 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
                     self.speakerIsOn = FALSE;
                     //------------------------------------------------------------------------------
                 }else{
-                    
+
                     //BLUETOOTH not SELECTED but connected
                     if([self isBluetoothInputAvailable]){
                         
                         //BLUETOOTH is AVAILABLE -
-                        //ISSUE - when cordova loads plugins it somewhere turns the currentAudio from Bluetooth to Reciver/iPhone/EARPIECE
+                        //--------------------------------------------------------------------------
+                        //ISSUE1 - when cordova loads plugins it somewhere turns the currentAudio from Bluetooth to Reciver/iPhone/EARPIECE
+                        //--------------------------------------------------------------------------
                         //HACK was to turn it back on here instead of SEPAKER by default.
                         //ISSUE - turning BLUETOOTH on in code can show wrong device selected in the IOS AVAudioPickerView
                         //POSSIBLE FUTURE - if user has BLE connected but not selected may switch to it here
                         
-                        NSLog(@"[VOIPCALLKITPLUGIN][CordovaCall.m][setupAudioSession] isCurrentAudioRouteOutputSetToBluetooth: FALSE BUT isBluetoothInputAvailable:TRUE - DONT TURN ON SPEAKER");
+                        //--------------------------------------------------------------------------
+                        //ISSUE 2 -
+                        //--------------------------------------------------------------------------
+                        //if user already set it to Speaker before the call:
+                        //iPhone    - SELECTED
+                        //Bluetooth - not selected
+                        //we cant tell is this because of bug in ISSUE1
+                        //--------------------------------------------------------------------------
+                        //currentRoute is Speaker
+                        
+                        //    <AVAudioSessionRouteDescription: 0x282bced90,
+                        //    inputs = (
+                        //              );
+                        //    outputs = (
+                        //               "<AVAudioSessionPortDescription: 0x282bcee50, type = Speaker; name = Speaker; UID = Speaker; selectedDataSource = (null)>"
+                        //               )>
+                        //--------------------------------------------------------------------------
+                        //    [AVAudioSession sharedInstance].availableInputs):
+                        //    (
+                        //        "<AVAudioSessionPortDescription: 0x282bce0d0, type = MicrophoneBuiltIn; name = iPhone Microphone; UID = Built-In Microphone; selectedDataSource = Front>",
+                        //        "<AVAudioSessionPortDescription: 0x282bce140, type = BluetoothHFP; name = Brian\U2019s AirPods; UID = D4:90:9C:A3:A7:2B-tsco; selectedDataSource = (null)>",
+                        //        "<AVAudioSessionPortDescription: 0x282bce120, type = BluetoothHFP; name = Bose QuietControl 30; UID = 2C:41:A1:E8:1B:A8-tsco; selectedDataSource = (null)>"
+                        //     )
+                        //--------------------------------------------------------------------------
+                        //RULE: so have to turn bluetooth on if any devices connected
+                        //--------------------------------------------------------------------------
+                        
+                        
+                        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] [setupAudioSession] isCurrentAudioRouteOutputSetToBluetooth: FALSE BUT isBluetoothInputAvailable:TRUE - DONT TURN ON SPEAKER");
+                    
+                        NSLog(@"[AUDIO][dumpCurrentAudioSession][AVAudioSession sharedInstance].currentRoute:\r%@", [AVAudioSession sharedInstance].currentRoute);
+                        NSLog(@"[AUDIO][dumpCurrentAudioSession][AVAudioSession sharedInstance].currentRoute:\r%@", [AVAudioSession sharedInstance].availableInputs);
                         
                         [self turnBluetoothOn];
                         
                     }else{
                         //NO BLUETOOTH CONNECTED
-                        NSLog(@"[VOIPCALLKITPLUGIN][CordovaCall.m][setupAudioSession] isCurrentAudioRouteOutputSetToBluetooth: FALSE BUT isBluetoothInputAvailable:FALSE - NO BLUETOOTH AVAILABLE - TURN ON SPEAKER");
+                        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] [setupAudioSession] isCurrentAudioRouteOutputSetToBluetooth: FALSE BUT isBluetoothInputAvailable:FALSE - NO BLUETOOTH AVAILABLE - TURN ON SPEAKER");
                         
                         //----------------------------------------------------------------------------------
                         //Turn on SPEAKER initially
@@ -1803,68 +1827,31 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
 //set by routeChanged:
 
 -(void)update_switchAudioButton_earpiece{
-    NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController.m] update_switchAudioButton_earpiece:");
+    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] update_switchAudioButton_earpiece:");
     
     [self.switchAudioButton setImage:[UIImage imageNamed:@"baseline_hearing_white_24pt"] forState: UIControlStateNormal];
-    
-    if([self isCurrentAudioRouteOutputSetToBluetooth]){
-        NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController.m][update_switchAudioButton_earpiece:] isCurrentAudioRouteOutputSetToBluetooth: TRUE - ALWAYS SHOW AUDIO PICKER BUTTON");
+ //BLUETOOTHALERTSHEET   
 
-        [self showiOSAudioPickerButton];
-        
-    }else{
-        //BLUETOOTH not SELECTED
-        if([self isBluetoothInputAvailable]){
-            
-            //BLUETOOTH is AVAILABLE - always show the iOS AUDIO button
-            NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController.m][update_switchAudioButton_earpiece:] isCurrentAudioRouteOutputSetToBluetooth: FALSE BUT isBluetoothInputAvailable:TRUE SHOW AUDIO PICKER");
-            
-        }else{
-            //NO BLUETOOTH CONNECTED
-            NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController.m][update_switchAudioButton_earpiece:] isCurrentAudioRouteOutputSetToBluetooth: FALSE BUT isBluetoothInputAvailable:FALSE show toggle button : EARPIECE");
-            
-            [self showEarpieceOrSpeakerButton];
-        }
-        
-    }
+    [self showEarpieceOrSpeakerButton];
 }
 
 -(void)update_switchAudioButton_speaker{
-    NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController.m] update_switchAudioButton_speaker:");
+    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] update_switchAudioButton_speaker:");
     
     //may be hidden but change icon
     [self.switchAudioButton setImage:[UIImage imageNamed:@"baseline_phonelink_ring_white_24pt"] forState: UIControlStateNormal];
     
-    
-    if([self isCurrentAudioRouteOutputSetToBluetooth]){
-        NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController.m][update_switchAudioButton_speaker:] isCurrentAudioRouteOutputSetToBluetooth: TRUE - ALWAYS SHOW AUDIO PICKER BUTTON");
-        
-        [self showiOSAudioPickerButton];
-        
-    }else{
-
-        //BLUETOOTH not SELECTED
-        if([self isBluetoothInputAvailable]){
-            
-            //BLUETOOTH is AVAILABLE - always show the iOS AUDIO button
-            NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController.m][update_switchAudioButton_speaker:] isCurrentAudioRouteOutputSetToBluetooth: FALSE BUT isBluetoothInputAvailable:TRUE SHOW AUDIO PICKER");
-            
-        }else{
-            //NO BLUETOOTH CONNECTED
-            NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController.m][update_switchAudioButton_speaker:] isCurrentAudioRouteOutputSetToBluetooth: FALSE BUT isBluetoothInputAvailable:FALSE show toggle button : SPEAKER");
-            
-            [self showEarpieceOrSpeakerButton];
-        }
-    }
+    // BLUETOOTHALERTSHEET
+    [self showEarpieceOrSpeakerButton];
 }
 
-
 -(void)update_switchAudioButton_bluetooth{
-    NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController.m] update_switchAudioButton_bluetooth:");
+    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] update_switchAudioButton_bluetooth:");
     
     [self.switchAudioButton setImage:[UIImage imageNamed:@"baseline_bluetooth_connected_white_24pt"] forState: UIControlStateNormal];
-    
-    [self showiOSAudioPickerButton];
+
+    // BLUETOOTHALERTSHEET
+    [self showEarpieceOrSpeakerButton];
   
 }
 
@@ -1878,13 +1865,13 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
             [self.mpVolumeView setUserInteractionEnabled:FALSE];
             
         }else{
-            NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController.m] mpVolumeView: is NULL");
+            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] mpVolumeView: is NULL");
         }
         if(NULL != self.avRoutePickerView){
             [self.avRoutePickerView setUserInteractionEnabled:FALSE];
             self.avRoutePickerView.tintColor = [UIColor grayColor];
         }else{
-            NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController.m] disableSwitchAudio: is NULL");
+            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] disableSwitchAudio: is NULL");
         }
     }
 }
@@ -1898,14 +1885,14 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
             [self.mpVolumeView setUserInteractionEnabled:TRUE];
             self.avRoutePickerView.tintColor = [UIColor whiteColor];
         }else{
-            NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController.m] mpVolumeView: is NULL");
+            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] mpVolumeView: is NULL");
         }
         
         if(NULL != self.avRoutePickerView){
             [self.avRoutePickerView setUserInteractionEnabled:TRUE];
             
         }else{
-            NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController.m] disableSwitchAudio: is NULL");
+            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] disableSwitchAudio: is NULL");
         }
     }
 }
@@ -1919,36 +1906,38 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
     [self.viewAudioWrapper setHidden:TRUE]; //hide it
 
 }
-
--(void)showiOSAudioPickerButton{
-    //HIDE TOGGLE earpiece/speaker
-    [self.switchAudioButton setHidden:TRUE]; //hide it
-    [self.switchAudioButton setEnabled:FALSE]; //disable it
-    
-    //SHOW AUDIO PICKER BUTTON
-    //note in viewDidLoad I called placeVolumeIconOverButton before set_buttons state
-    //else viewAudioWrapper setHidden:TRUE just shows blank space
-    [self.viewAudioWrapper setHidden:FALSE]; //show it
-}
+//BLUETOOTHALERTSHEET - cleanup
+//-(void)showiOSAudioPickerButton{
+//    //HIDE TOGGLE earpiece/speaker
+//    [self.switchAudioButton setHidden:TRUE]; //hide it
+//    [self.switchAudioButton setEnabled:FALSE]; //disable it
+//
+//    //SHOW AUDIO PICKER BUTTON
+//    //note in viewDidLoad I called placeVolumeIconOverButton before set_buttons state
+//    //else viewAudioWrapper setHidden:TRUE just shows blank space
+//    [self.viewAudioWrapper setHidden:FALSE]; //show it
+//}
 
 #pragma mark -
 #pragma mark MAIN BUTTON - AUDIO ON/OFF
 #pragma mark -
 - (IBAction)switchAudioButtonPressed:(id)sender {
     
-    NSLog(@"switchAudioButtonPressed >> toggleSpeaker");
+    //BUG - if you turn off your airpods during a call - button can bet stuck on BLUETOOTH icon
+    [self audioRoute_configureUI];
     
-    [self toggleSpeaker];
+    //BLUETOOTHALERTSHEET
+    [self showAudioPickerSheet];
     
 }
 
 -(void)toggleSpeaker{
     
     if(self.speakerIsOn){
-        NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController.m] toggleSpeaker: >> self.speakerIsOn:TRUE >> CALL turnSpeakerOff:");
+        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] toggleSpeaker: >> self.speakerIsOn:TRUE >> CALL turnSpeakerOff:");
         [self turnSpeakerOff];
     }else{
-        NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController.m] toggleSpeaker: >> self.speakerIsOn:FALSE >> CALL turnSpeakerOn:");
+        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] toggleSpeaker: >> self.speakerIsOn:FALSE >> CALL turnSpeakerOn:");
         [self turnSpeakerOn];
     }
     
@@ -1972,18 +1961,27 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
     //        AVAudioSessionPortOverrideSpeaker API_UNAVAILABLE(tvos, watchos, macos) = 'spkr'
     //----------------------------------------------------------------------------------------------
 
+    //no availableOutputs
+    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][turnSpeakerOff] CALLED: [AVAudioSession sharedInstance].availableInputs):\r%@", [AVAudioSession sharedInstance].availableInputs);
+    //    2021-03-16 17:16:13.221065+0000 Seachat[1218:275510] [VIDEOPLUGIN][TwilioVideoViewController][AUDIO][turnSpeakerOff] CALLED: [AVAudioSession sharedInstance].availableInputs):
+    //    (
+    //     "<AVAudioSessionPortDescription: 0x2827257a0, type = MicrophoneBuiltIn; name = iPhone Microphone; UID = Built-In Microphone; selectedDataSource = (null)>"
+    //     )
+    
     NSError* errorSpeakerOff = nil;
+    
     if (![[AVAudioSession sharedInstance] overrideOutputAudioPort:AVAudioSessionPortOverrideNone error:&errorSpeakerOff]) {
         NSLog(@"[turnSpeakerOff] AVAudiosession overrideOutputAudioPort: AVAudioSessionPortOverrideNone FAILED: %@",errorSpeakerOff);
-        
+        //Happened with airpod I put them back in case but routeChange: never triggered
+        self.speakerIsOn = false;
     }else{
-        
         //------------------------------------------------------------------------------------------
         //theres no method to TURN SPEAKER OFF
+        //------------------------------------------------------------------------------------------
         //we call AVAudioSessionPortOverrideNone to REMOVE AVAudioSessionPortOverrideSpeaker
         //IF BLUETOOTH is connected it will reset back to BLUETOOTH
         //IF BLUETOOTH isnt connected it will reset back to EARPIECE
-        
+        //------------------------------------------------------------------------------------------
         if([self isCurrentAudioRouteOutputSetToBluetooth]){
             NSLog(@"[turnSpeakerOff] AVAudiosession overrideOutputAudioPort TO AVAudioSessionPortOverrideNone OK - THIS WILL REMOVE SPEAKER OVERRIDE - BLE is connected - iOS reset to BLUETOOTH not EARPIECE");
         }else{
@@ -1992,6 +1990,47 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
         //can be BLUETOOTH or EARPIECE
         self.speakerIsOn = false;
     }
+    
+    
+    
+    AVAudioSessionPortDescription * input_avAudioSessionPortDescription = [self findEarpieceInput];
+    if(NULL != input_avAudioSessionPortDescription){
+        
+        //----------------------------------------------------------------------------------------
+        //SET PREFERRED INPUT TO BLUETOOTH
+        //----------------------------------------------------------------------------------------
+        NSLog(@"VOIPCALLKITPLUGIN][TwilioVideoViewController] turnSpeakerOff: findEarpieceInput: FOUND >> CALL setPreferredInput");
+        
+        
+        /*!
+         @brief Select a preferred input port for audio routing.
+         
+         If the input port is already part of the current audio route, this will have no effect.
+         Otherwise, selecting an input port for routing will initiate a route change to use the preferred
+         input port. Setting a nil value will clear the preference.
+         */
+        NSError *error = nil;
+        if (![[AVAudioSession sharedInstance] setPreferredInput:input_avAudioSessionPortDescription
+                                                          error:&error])
+        {
+            //----------------------------------------------------------------------------------
+            if (error != nil) {
+                NSLog(@"VOIPCALLKITPLUGIN][TwilioVideoViewController] turnSpeakerOff: setPreferredInput: FAILED >> ERROR:%@", error);
+                
+            } else {
+                NSLog(@"VOIPCALLKITPLUGIN][TwilioVideoViewController] turnSpeakerOff: setPreferredInput: FAILED but ERROR: NULL");
+            }
+            //----------------------------------------------------------------------------------
+        }else{
+            NSLog(@"VOIPCALLKITPLUGIN][TwilioVideoViewController] findBluetoothInput:  setPreferredInput >> OK");
+        }
+        
+    }else{
+        NSLog(@"[VOIPCALLKITPLUGIN][TwilioVideoViewController] findBluetoothInput: is NULL - turnBluetoothOn: FAILED");
+    }
+    
+    
+    
     //----------------------------------------------------------------------------------------------
 }
 
@@ -2032,38 +2071,47 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
     }else{
         
         if([self isBluetoothInputAvailable]){
-            AVAudioSessionPortDescription * input_avAudioSessionPortDescription = [self findBluetoothInput];
-            if(NULL != input_avAudioSessionPortDescription){
+            //could be more than 1 bluetooth
+            //AVAudioSessionPortDescription *
+            NSMutableArray *array_inputs_avAudioSessionPortDescription = [self findBluetoothInput];
+            if(NULL != array_inputs_avAudioSessionPortDescription){
                 
-                //----------------------------------------------------------------------------------------
-                //SET PREFERRED INPUT TO BLUETOOTH
-                //----------------------------------------------------------------------------------------
-                NSLog(@"VOIPCALLKITPLUGIN][TwilioVideoViewController] turnBluetoothOn: findBluetoothInput: FOUND >> CALL setPreferredInput");
-                
-                
-                /*!
-                 @brief Select a preferred input port for audio routing.
-                 
-                 If the input port is already part of the current audio route, this will have no effect.
-                 Otherwise, selecting an input port for routing will initiate a route change to use the preferred
-                 input port. Setting a nil value will clear the preference.
-                 */
-                NSError *error = nil;
-                if (![[AVAudioSession sharedInstance] setPreferredInput:input_avAudioSessionPortDescription
-                                                                  error:&error])
-                {
-                    //----------------------------------------------------------------------------------
-                    if (error != nil) {
-                        NSLog(@"VOIPCALLKITPLUGIN][TwilioVideoViewController] findBluetoothInput: setPreferredInput: FAILED >> ERROR:%@", error);
-                        
-                    } else {
-                        NSLog(@"VOIPCALLKITPLUGIN][TwilioVideoViewController] findBluetoothInput: setPreferredInput: FAILED but ERROR: NULL");
+                if([array_inputs_avAudioSessionPortDescription count] > 0){
+                    //------------------------------------------------------------------------------
+                    //FIRST - edge case - most people wont have multiple BLE devices
+                    AVAudioSessionPortDescription * input_avAudioSessionPortDescription = array_inputs_avAudioSessionPortDescription[0];
+                    
+                    
+                    //------------------------------------------------------------------------------
+                    //SET PREFERRED INPUT TO BLUETOOTH
+                    //----------------------------------------------------------------------------------------
+                    NSLog(@"VOIPCALLKITPLUGIN][TwilioVideoViewController] turnBluetoothOn: findBluetoothInput: FOUND >> CALL setPreferredInput with input_avAudioSessionPortDescription:\r%@", input_avAudioSessionPortDescription);
+                    /*!
+                     @brief Select a preferred input port for audio routing.
+                     
+                     If the input port is already part of the current audio route, this will have no effect.
+                     Otherwise, selecting an input port for routing will initiate a route change to use the preferred
+                     input port. Setting a nil value will clear the preference.
+                     */
+                    NSError *error = nil;
+                    if (![[AVAudioSession sharedInstance] setPreferredInput:input_avAudioSessionPortDescription
+                                                                      error:&error])
+                    {
+                        //----------------------------------------------------------------------------------
+                        if (error != nil) {
+                            NSLog(@"VOIPCALLKITPLUGIN][TwilioVideoViewController] findBluetoothInput: setPreferredInput: FAILED >> ERROR:%@", error);
+                            
+                        } else {
+                            NSLog(@"VOIPCALLKITPLUGIN][TwilioVideoViewController] findBluetoothInput: setPreferredInput: FAILED but ERROR: NULL");
+                        }
+                        //----------------------------------------------------------------------------------
+                    }else{
+                        NSLog(@"VOIPCALLKITPLUGIN][TwilioVideoViewController] findBluetoothInput:  setPreferredInput >> OK");
                     }
-                    //----------------------------------------------------------------------------------
+                    //----------------------------------------------------------------------------------------
                 }else{
-                    NSLog(@"VOIPCALLKITPLUGIN][TwilioVideoViewController] findBluetoothInput:  setPreferredInput >> OK");
+                    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] [array_inputs_avAudioSessionPortDescription count]:%ld", [array_inputs_avAudioSessionPortDescription count]);
                 }
-                
             }else{
                 NSLog(@"[VOIPCALLKITPLUGIN][TwilioVideoViewController] findBluetoothInput: is NULL - turnBluetoothOn: FAILED");
             }
@@ -2075,6 +2123,294 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
 }
 
 
+- (void) showAudioPickerSheet{
+    dispatch_async(dispatch_get_main_queue(), ^{
+        
+        UIAlertControllerStyle preferredStyle = UIAlertControllerStyleActionSheet;
+        //------------------------------------------------------------------------------------------
+        //no sheet on ipad
+        if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad)
+        {
+            //ipad
+            preferredStyle = UIAlertControllerStyleAlert;
+        }
+        else
+        {
+            //iphone/appletv etc. - use Sheet
+            
+        }
+       
+        //------------------------------------------------------------------------------------------
+        NSString * action_title_iPhone = @"iPhone";
+        NSString * action_title_Speaker = @"Speaker";
+        NSString * action_title_Bluetooth = @"BLUETOOTH";
+        
+        NSString * alert_title = @"Switch Audio";
+        NSString * alert_message = @"Current:";
+        
+        NSMutableArray * array_avAudioSessionPortDescription_Bluetooth = FALSE;
+        
+        if([self isBluetoothInputAvailable]){
+            //--------------------------------------------------------------------------------------
+            //BLUETOOTH(Optional)
+            //--------------------------------------------------------------------------------------
+            //BLUETOOTH CONNECTED (may not be SELECTED) - for incoming iOS always switches to Bluetooth even if not currently selected
+            //--------------------------------------------------------------------------------------
+            //GET BLUETOOTH DEVICE NAME
+            //possible bug if you have multiple bluetooth devices - apple api only returns the first
+            //AVAudioSessionPortDescription *
+            array_avAudioSessionPortDescription_Bluetooth = [self findBluetoothInput];
+           
+            //TODO - EDGE CASE MULTIPLE BLE devices attached - show list - but also need to exclude the CURRENTLY selected BLE device (ran out of time)
+            
+            if(NULL != array_avAudioSessionPortDescription_Bluetooth){
+                
+                if([array_avAudioSessionPortDescription_Bluetooth count] > 0){
+                    //------------------------------------------------------------------------------
+                    //FIRST - edge case - most people wont have multiple BLE devices
+                    AVAudioSessionPortDescription * first_avAudioSessionPortDescription = array_avAudioSessionPortDescription_Bluetooth[0];
+                    
+                    if (NULL != [first_avAudioSessionPortDescription portName]) {
+                        action_title_Bluetooth = [first_avAudioSessionPortDescription portName];
+                        
+                    }else{
+                        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] showAudioPickerSheet: [_avAudioSessionPortDescription portName]: is NULL");
+                    }
+                    //----------------------------------------------------------------------------------------
+                }else{
+                    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] [array_inputs_avAudioSessionPortDescription count]:%ld", [array_avAudioSessionPortDescription_Bluetooth count]);
+                }
+            }else{
+                NSLog(@"[VOIPCALLKITPLUGIN][TwilioVideoViewController] findBluetoothInput: is NULL - turnBluetoothOn: FAILED");
+            }
+
+            //--------------------------------------------------------------------------------------
+            if([self isCurrentAudioRouteOutputSetToBluetooth]){
+                //BLUETOOTH CONNECTED and SELECTED
+                alert_message = [NSString stringWithFormat:@"Current: %@", action_title_Bluetooth];
+            }else{
+                //BLUETOOTH NOT CONNECTED or SELECTED
+                if(self.speakerIsOn){
+                    alert_message = [NSString stringWithFormat:@"Current: %@", action_title_Speaker];
+                    
+                }else{
+                    alert_message = [NSString stringWithFormat:@"Current: %@", action_title_iPhone];
+                }
+            }
+        }else{
+            //NO BLUETOOTH CONNECTED - can only be iPhone or Speaker
+            if(self.speakerIsOn){
+                alert_message = [NSString stringWithFormat:@"Current: %@", action_title_Speaker];
+                
+            }else{
+                alert_message = [NSString stringWithFormat:@"Current: %@", action_title_iPhone];
+            }
+        }
+        
+        
+        //------------------------------------------------------------------------------------------
+        //BUILD ALERT SHEET
+        //------------------------------------------------------------------------------------------
+        UIAlertController * alertController = [UIAlertController alertControllerWithTitle:alert_title
+                                                                                  message:alert_message
+                                                                           preferredStyle:preferredStyle];
+        //------------------------------------------------------------------------------------------
+        //ADD BUTTONS
+        //------------------------------------------------------------------------------------------
+        if([self isBluetoothInputAvailable]){
+            if([self isCurrentAudioRouteOutputSetToBluetooth]){
+                //BLUETOOTH ON and SELECTED
+                [self add_iPhone_to: alertController action_title: action_title_iPhone];
+                [self add_Speaker_to: alertController action_title: action_title_Speaker];
+                //BLUETOOTH - already selected
+                
+                //EDGE CASE - multiple BLE devices
+                //TODO - multiple bluetooth devices dont show the current selected bluetooth (need to compare BLE devices list with current)
+            }else{
+                //BLUETOOTH ON and NOT SELECTED
+                if(self.speakerIsOn){
+                    //------------------------------------------------------------------------------
+                    [self add_iPhone_to: alertController action_title: action_title_iPhone];
+                    //------------------------------------------------------------------------------
+                    //SPEAKER - already selected
+                    //------------------------------------------------------------------------------
+                    //BLUETOOTH(s)
+                    if(NULL != array_avAudioSessionPortDescription_Bluetooth){
+                        [self add_Bluetooths_to:alertController
+                          arrayBluetoothDevices:array_avAudioSessionPortDescription_Bluetooth];
+                    }else{
+                        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController]  showAudioPickerSheet: array_avAudioSessionPortDescription_Bluetoothis NULL");
+                    }
+                    //------------------------------------------------------------------------------
+                }else{
+                    //------------------------------------------------------------------------------
+                    //iPhone - already selected
+                    //------------------------------------------------------------------------------
+                    [self add_Speaker_to: alertController action_title: action_title_Speaker];
+                    //------------------------------------------------------------------------------
+                    //BLUETOOTH(s)
+                    if(NULL != array_avAudioSessionPortDescription_Bluetooth){
+                        [self add_Bluetooths_to:alertController
+                          arrayBluetoothDevices:array_avAudioSessionPortDescription_Bluetooth];
+                    }else{
+                        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController]  showAudioPickerSheet: array_avAudioSessionPortDescription_Bluetoothis NULL");
+                    }
+                    //------------------------------------------------------------------------------
+                }
+            }
+        }else{
+            //BLUETOOTH not CONNECTED
+            if(self.speakerIsOn){
+                //SPEAKER selected
+                [self add_iPhone_to: alertController action_title: action_title_iPhone];
+                
+            }else{
+                //EARPIECE selected
+                [self add_Speaker_to: alertController action_title: action_title_Speaker];
+            }
+        }
+
+        //------------------------------------------------------------------------------------------
+        [self add_Cancel_to: alertController];
+        //------------------------------------------------------------------------------------------
+        [self presentViewController:alertController animated:TRUE completion:^{
+            //alert shown
+        }];
+        //------------------------------------------------------------------------------------------
+    });
+}
+
+
+
+
+-(void) add_iPhone_to:(UIAlertController *) alertController action_title:(NSString *) action_title{
+    if(NULL != alertController){
+        if(NULL != action_title){
+            //------------------------------------------------------------------------------------------
+            UIAlertAction * alertAction_iPhone = [UIAlertAction actionWithTitle:action_title
+                                                                          style:UIAlertActionStyleDefault
+                                                                        handler:^(UIAlertAction * _Nonnull action)
+            {
+                //TODO - pass in handler - was getting weak self ref
+                [self turnSpeakerOff];
+            }];
+            
+            [alertController addAction: alertAction_iPhone];
+            //------------------------------------------------------------------------------------------
+        }else{
+            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] add_Speaker_to: action_title is NULL");
+        }
+        
+    }else{
+        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] add_iPhone_to: alertController is NULL");
+    }
+}
+
+-(void) add_Speaker_to:(UIAlertController *) alertController action_title:(NSString *) action_title{
+    if(NULL != alertController){
+        if(NULL != action_title){
+            //------------------------------------------------------------------------------------------
+            UIAlertAction * alertAction_Speaker = [UIAlertAction actionWithTitle:action_title
+                                                                           style:UIAlertActionStyleDefault
+                                                                         handler:^(UIAlertAction * _Nonnull action)
+           {
+                //TODO - pass in handler - was getting weak self ref
+                [self turnSpeakerOn];
+            }];
+            
+            [alertController addAction: alertAction_Speaker];
+            //------------------------------------------------------------------------------------------
+        }else{
+            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] add_Speaker_to: action_title is NULL");
+        }
+        
+    }else{
+        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] add_Speaker_to: alertController is NULL");
+    }
+}
+
+-(void) add_Bluetooth_to:(UIAlertController *) alertController action_title:(NSString *) action_title{
+    if(NULL != alertController){
+        if(NULL != action_title){
+            //------------------------------------------------------------------------------------------
+            UIAlertAction * alertAction_Bluetooth = [UIAlertAction actionWithTitle:action_title
+                                                                             style:UIAlertActionStyleDefault
+                                                                           handler:^(UIAlertAction * _Nonnull action)
+            {
+                //TODO - pass in handler - was getting weak self ref
+                [self turnBluetoothOn];
+            }];
+            
+            [alertController addAction: alertAction_Bluetooth];
+            //------------------------------------------------------------------------------------------
+        }else{
+            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] add_Bluetooth_to: action_title is NULL");
+        }
+    }else{
+        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] add_Bluetooth_to: alertController is NULL");
+    }
+}
+
+
+-(void) add_Bluetooths_to:(UIAlertController *) alertController
+    arrayBluetoothDevices:(NSMutableArray *) array_avAudioSessionPortDescription_Bluetooth{
+
+    //------------------------------------------------------------------------------
+    if(NULL != array_avAudioSessionPortDescription_Bluetooth){
+        if([array_avAudioSessionPortDescription_Bluetooth count] > 0){
+            
+            for(AVAudioSessionPortDescription * avAudioSessionPortDescription in array_avAudioSessionPortDescription_Bluetooth){
+                //------------------------------------------------------------------
+                NSString * action_title_Bluetooth = @"BLE";
+                if(NULL != [avAudioSessionPortDescription portName]){
+                    action_title_Bluetooth = [avAudioSessionPortDescription portName];
+                }else{
+                    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController]  endCall: is NULL");
+                }
+                //------------------------------------------------------------------
+                [self add_Bluetooth_to: alertController action_title: action_title_Bluetooth];
+                //------------------------------------------------------------------
+            }
+        }else{
+            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController]  endCall: is NULL");
+        }
+    }else{
+        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController]  endCall: is NULL");
+    }
+    //------------------------------------------------------------------------------
+}
+
+-(void) add_Cancel_to:(UIAlertController *) alertController{
+    if(NULL != alertController){
+        //------------------------------------------------------------------------------------------
+        UIAlertAction * alertAction_Cancel = [UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+            //do nothing just hide it
+        }];
+        
+        [alertController addAction: alertAction_Cancel];
+        //------------------------------------------------------------------------------------------
+    }else{
+        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] addCancel_to: alertController is NULL");
+    }
+}
+
+
+-(void) alertController:(UIAlertController *) alertController addAction:(UIAlertAction *) alertAction{
+    
+    if(NULL != alertController){
+        if(NULL != alertAction){
+            [alertController addAction: alertAction];
+        }else{
+            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] alertController:addAction: alertAction is NULL");
+        }
+    }else{
+        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] alertController:addAction: alertController is NULL");
+    }
+}
+
+#pragma mark -
+#pragma mark placeVolumeIconOverButton
+#pragma mark -
 
 -(void)placeVolumeIconOverButton{
     
@@ -2104,7 +2440,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
                 
                 [self.viewAudioWrapper setHidden:TRUE];
             }else{
-                NSLog(@"[VOIPCALLKITPLUGIN][TwilioVideoViewController.m] placeVolumeIconOverButton: self.avRoutePickerView is NULL");
+                NSLog(@"[VOIPCALLKITPLUGIN][TwilioVideoViewController] placeVolumeIconOverButton: self.avRoutePickerView is NULL");
             }
         } else {
             
@@ -2129,7 +2465,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
                 
                 [self.mpVolumeView setHidden:TRUE];
             }else{
-                NSLog(@"[VOIPCALLKITPLUGIN][TwilioVideoViewController.m] placeVolumeIconOverButton: self.mpVolumeView is NULL");
+                NSLog(@"[VOIPCALLKITPLUGIN][TwilioVideoViewController] placeVolumeIconOverButton: self.mpVolumeView is NULL");
             }
             
         }
@@ -2150,7 +2486,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
 
 - (void)routeChange:(NSNotification*)notification {
     
-    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][routeChange] START ********");
+    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][routeChange] START ********");
 
     [self audioRoute_configureUI];
 }
@@ -2167,25 +2503,25 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
     //----------------------------------------------------------------------------------------------
     NSArray<AVAudioSessionPortDescription *> *inputs = currentRoute.inputs;
     if ([inputs count] == 0) {
-        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][routeChange] CALLED: [inputs count] == 0");
+        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][audioRoute_configureUI] CALLED: [inputs count] == 0");
         
     }else{
         
-        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][routeChange] CALLED: [inputs count]:%ld", [inputs count]);
+        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][audioRoute_configureUI] CALLED: [inputs count]:%ld", [inputs count]);
         
         AVAudioSessionPortDescription *input = [inputs objectAtIndex:0];
         //see speakerOn: speakeroff:
         if ([[input portType] isEqualToString:AVAudioSessionPortBuiltInReceiver]) {
-            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][routeChange] NEW >> INPUT >> AVAudioSessionPortBuiltInReceiver - EARPIECE");
+            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][audioRoute_configureUI] NEW >> INPUT >> AVAudioSessionPortBuiltInReceiver - EARPIECE");
             
         }
         else if ([[input portType] isEqualToString:AVAudioSessionPortBuiltInSpeaker]) {
-            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][routeChange] NEW >> INPUT >> AVAudioSessionPortBuiltInSpeaker - SPEAKER");
+            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][audioRoute_configureUI] NEW >> INPUT >> AVAudioSessionPortBuiltInSpeaker - SPEAKER");
         }
         else
         {
             //NEW >> OUTPUT: portName:Bose QuietControl 30 portType:BluetoothHFP
-            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][routeChange] NEW >> INPUT: portName:%@ portType:%@",[input portName], [input portType]);
+            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][audioRoute_configureUI] NEW >> INPUT: portName:%@ portType:%@",[input portName], [input portType]);
         }
     }
     
@@ -2193,7 +2529,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
     //OUTPUTS
     //----------------------------------------------------------------------------------------------
     NSArray<AVAudioSessionPortDescription *> *outputs = currentRoute.outputs;
-    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][routeChange] CALLED: [outputs count]:%ld", [outputs count]);
+    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][audioRoute_configureUI] CALLED: [outputs count]:%ld", [outputs count]);
     
     if ([outputs count] > 0) {
         //------------------------------------------------------------------------------------------
@@ -2204,7 +2540,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
             //--------------------------------------------------------------------------------------
             //EARPIERCE / Receiver / iPhone
             //--------------------------------------------------------------------------------------
-            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][routeChange] NEW >> AVAudioSessionPortBuiltInReceiver - EARPIECE");
+            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][audioRoute_configureUI] NEW >> AVAudioSessionPortBuiltInReceiver - EARPIECE");
             
             self.speakerIsOn = false;
             
@@ -2215,7 +2551,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
             //--------------------------------------------------------------------------------------
             //Speaker
             //--------------------------------------------------------------------------------------
-            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][routeChange] NEW >> AVAudioSessionPortBuiltInSpeaker - SPEAKER");
+            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][audioRoute_configureUI] NEW >> AVAudioSessionPortBuiltInSpeaker - SPEAKER");
             
             self.speakerIsOn = true;
             
@@ -2237,7 +2573,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
             
             //NEW >> OUTPUT: portName:Bose QuietControl 30 portType:BluetoothHFP
             //--------------------------------------------------------------------------------------
-            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][routeChange] NEW >> portType:'%@' - BLUETOOTH HEADSET", [output portType]);
+            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][audioRoute_configureUI] NEW >> portType:'%@' - BLUETOOTH HEADSET", [output portType]);
             //--------------------------------------------------------------------------------------
             self.speakerIsOn = false;
             //--------------------------------------------------------------------------------------
@@ -2247,17 +2583,17 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
         else
         {
             //--------------------------------------------------------------------------------------
-            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][routeChange] NEW >> OUTPUT: portName:%@ portType:%@",[output portName], [output portType]);
+            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][audioRoute_configureUI] NEW >> OUTPUT: portName:%@ portType:%@",[output portName], [output portType]);
             //--------------------------------------------------------------------------------------
             self.speakerIsOn = false;
             //--------------------------------------------------------------------------------------
         }
     }else{
-        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][routeChange] CALLED: [outputs count] == 0");
+        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][routeChange] CALLED: [outputs count] == 0");
         self.speakerIsOn = false;
     }
     
-    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][routeChange] END ********");
+    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][routeChange] END ********");
 }
 
 //USED FOR - DONT TURN ON SPEAKER if BLUETOOTH HEADSET plugged in WHEN CHAT STARTS
@@ -2265,12 +2601,31 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
     
     BOOL _isCurrentAudioRouteOutputSetToBluetooth = FALSE;
     AVAudioSessionRouteDescription *currentRoute = [AVAudioSession sharedInstance].currentRoute;
-    
+    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][isCurrentAudioRouteOutputSetToBluetooth] currentRoute:%@", currentRoute);
+
     //----------------------------------------------------------------------------------------------
     //OUTPUTS
     //----------------------------------------------------------------------------------------------
+    //    (
+    //     "<AVAudioSessionPortDescription: 0x283493770, type = MicrophoneBuiltIn; name = iPhone Microphone; UID = Built-In Microphone; selectedDataSource = (null)>",
+    //     "<AVAudioSessionPortDescription: 0x283493780, type = BluetoothHFP; name = Brian\U2019s AirPods; UID = D4:90:9C:A3:A7:2B-tsco; selectedDataSource = (null)>",
+    //     "<AVAudioSessionPortDescription: 0x283493790, type = BluetoothHFP; name = Bose QuietControl 30; UID = 2C:41:A1:E8:1B:A8-tsco; selectedDataSource = (null)>"
+    //     )
+    //    currentRoute:<AVAudioSessionRouteDescription: 0x2834ac150,
+    //    inputs = (
+    //              "<AVAudioSessionPortDescription: 0x2834ac170, type = BluetoothHFP; name = Brian\U2019s AirPods; UID = D4:90:9C:A3:A7:2B-tsco; selectedDataSource = (null)>"
+    //              );
+    //    outputs = (
+    //               "<AVAudioSessionPortDescription: 0x2834ac1b0, type = BluetoothHFP; name = Brian\U2019s AirPods; UID = D4:90:9C:A3:A7:2B-tsco; selectedDataSource = (null)>"
+    //               )>
+    
+    
+    
+    
+    
+    
     NSArray<AVAudioSessionPortDescription *> *outputs = currentRoute.outputs;
-    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][isCurrentAudioRouteOutputSetToBluetooth] CALLED: [outputs count]:%ld", [outputs count]);
+    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][isCurrentAudioRouteOutputSetToBluetooth] CALLED: [outputs count]:%ld", [outputs count]);
     
     if ([outputs count] > 0) {
         //------------------------------------------------------------------------------------------
@@ -2280,7 +2635,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
             //--------------------------------------------------------------------------------------
             //EARPIERCE / Receiver / iPhone
             //--------------------------------------------------------------------------------------
-            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][isCurrentAudioRouteOutputSetToBluetooth] AVAudioSessionPortBuiltInReceiver - EARPIECE");
+            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][isCurrentAudioRouteOutputSetToBluetooth] - NO - AVAudioSessionPortBuiltInReceiver - EARPIECE");
 
             
         }
@@ -2288,7 +2643,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
             //--------------------------------------------------------------------------------------
             //Speaker
             //--------------------------------------------------------------------------------------
-            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][isCurrentAudioRouteOutputSetToBluetooth] AVAudioSessionPortBuiltInSpeaker - SPEAKER");
+            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][isCurrentAudioRouteOutputSetToBluetooth] - NO - AVAudioSessionPortBuiltInSpeaker - SPEAKER");
             //--------------------------------------------------------------------------------------
         }
         else if ([[output portType] isEqualToString:AVAudioSessionPortBluetoothA2DP] ||
@@ -2312,7 +2667,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
             //--------------------------------------------------------------------------------------
             
             //--------------------------------------------------------------------------------------
-            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][isCurrentAudioRouteOutputSetToBluetooth] NEW >> AVAudioSessionPortBuiltInSpeaker:[portType:'%@'] - BLUETOOTH HEADSET", [output portType] );
+            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][isCurrentAudioRouteOutputSetToBluetooth]  - YES - AVAudioSessionPortBuiltInSpeaker:[portType:'%@'][portName:'%@'] - BLUETOOTH HEADSET", [output portType], [output portName] );
             //--------------------------------------------------------------------------------------
             _isCurrentAudioRouteOutputSetToBluetooth = TRUE;
             //--------------------------------------------------------------------------------------
@@ -2320,11 +2675,11 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
         else
         {
             //--------------------------------------------------------------------------------------
-            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][routeChange] NEW >> OUTPUT: portName:%@ portType:%@",[output portName], [output portType]);
+            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][isCurrentAudioRouteOutputSetToBluetooth] NEW >> OUTPUT: portName:%@ portType:%@",[output portName], [output portType]);
             //--------------------------------------------------------------------------------------
         }
     }else{
-        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][routeChange] CALLED: [outputs count] == 0");
+        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][isCurrentAudioRouteOutputSetToBluetooth] CALLED: [outputs count] == 0");
     }
     
     return _isCurrentAudioRouteOutputSetToBluetooth;
@@ -2335,34 +2690,35 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
     BOOL _isBluetoothInputAvailable = FALSE;
     
     //[AVAudioSession sharedInstance].outputDataSources is always empty
-    //NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][dump_allAudioRoutes] CALLED: [AVAudioSession sharedInstance].outputDataSources):\r%@", [AVAudioSession sharedInstance].outputDataSources);
+    //NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][dump_allAudioRoutes] CALLED: [AVAudioSession sharedInstance].outputDataSources):\r%@", [AVAudioSession sharedInstance].outputDataSources);
     
     
-    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][isBluetoothInputAvailable] CALLED: [AVAudioSession sharedInstance].availableInputs):\r%@", [AVAudioSession sharedInstance].availableInputs);
+    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][isBluetoothInputAvailable] CALLED: [AVAudioSession sharedInstance].availableInputs):\r%@", [AVAudioSession sharedInstance].availableInputs);
     NSLog(@"");
-    
-//    2021-03-10 18:38:14.339802+0000 Seachat[839:51929] [VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][dump_allAudioRoutes] CALLED: [AVAudioSession sharedInstance].outputDataSources):
-//    (
-//     )
-//    2021-03-10 18:38:14.364644+0000 Seachat[839:51929] [VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][dump_allAudioRoutes] CALLED: [AVAudioSession sharedInstance].availableInputs):
-//    (
-//     "<AVAudioSessionPortDescription: 0x283b15df0, type = MicrophoneBuiltIn; name = iPhone Microphone; UID = Built-In Microphone; selectedDataSource = Front>",
-//     "<AVAudioSessionPortDescription: 0x283b15e60, type = BluetoothHFP; name = Brian\U2019s AirPods; UID = D4:90:9C:A3:A7:2B-tsco; selectedDataSource = (null)>"
-//     )
-    
-    
-//    2021-03-10 18:38:53.559466+0000 Seachat[839:51929] [VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][dump_allAudioRoutes] CALLED: [AVAudioSession sharedInstance].availableInputs):
-//    (
-//     "<AVAudioSessionPortDescription: 0x283b09cc0, type = MicrophoneBuiltIn; name = iPhone Microphone; UID = Built-In Microphone; selectedDataSource = Front>",
-//     "<AVAudioSessionPortDescription: 0x283b0a470, type = BluetoothHFP; name = Brian\U2019s AirPods; UID = D4:90:9C:A3:A7:2B-tsco; selectedDataSource = (null)>"
-//     )
-    
+    //------------------------------------------------------------------------------------------
+    //EXAMPLES
+    //------------------------------------------------------------------------------------------
+    //    2021-03-10 18:38:14.339802+0000 Seachat[839:51929] [VIDEOPLUGIN][TwilioVideoViewController][AUDIO][dump_allAudioRoutes] CALLED: [AVAudioSession sharedInstance].outputDataSources):
+    //    (
+    //     )
+    //    2021-03-10 18:38:14.364644+0000 Seachat[839:51929] [VIDEOPLUGIN][TwilioVideoViewController][AUDIO][dump_allAudioRoutes] CALLED: [AVAudioSession sharedInstance].availableInputs):
+    //    (
+    //     "<AVAudioSessionPortDescription: 0x283b15df0, type = MicrophoneBuiltIn; name = iPhone Microphone; UID = Built-In Microphone; selectedDataSource = Front>",
+    //     "<AVAudioSessionPortDescription: 0x283b15e60, type = BluetoothHFP; name = Brian\U2019s AirPods; UID = D4:90:9C:A3:A7:2B-tsco; selectedDataSource = (null)>"
+    //     )
+    //------------------------------------------------------------------------------------------
+    //    2021-03-10 18:38:53.559466+0000 Seachat[839:51929] [VIDEOPLUGIN][TwilioVideoViewController][AUDIO][dump_allAudioRoutes] CALLED: [AVAudioSession sharedInstance].availableInputs):
+    //    (
+    //     "<AVAudioSessionPortDescription: 0x283b09cc0, type = MicrophoneBuiltIn; name = iPhone Microphone; UID = Built-In Microphone; selectedDataSource = Front>",
+    //     "<AVAudioSessionPortDescription: 0x283b0a470, type = BluetoothHFP; name = Brian\U2019s AirPods; UID = D4:90:9C:A3:A7:2B-tsco; selectedDataSource = (null)>"
+    //     )
+    //------------------------------------------------------------------------------------------
     
     //----------------------------------------------------------------------------------------------
     //availableInputs
     //----------------------------------------------------------------------------------------------
     NSArray<AVAudioSessionPortDescription *> *availableInputs = [AVAudioSession sharedInstance].availableInputs;
-    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][isBluetoothInputAvailable] CALLED: [availableInputs count]:%ld", [availableInputs count]);
+    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][isBluetoothInputAvailable] CALLED: [availableInputs count]:%ld", [availableInputs count]);
 
     if ([availableInputs count] > 0) {
         //------------------------------------------------------------------------------------------
@@ -2389,7 +2745,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
                 //--------------------------------------------------------------------------------------
                 
                 //--------------------------------------------------------------------------------------
-                NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][isBluetoothInputAvailable] NEW >> FOUND BLUETOOTH :[portType:'%@']", [availableInput portType] );
+                NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][isBluetoothInputAvailable] NEW >> FOUND BLUETOOTH :[portType:'%@']", [availableInput portType] );
                 //--------------------------------------------------------------------------------------
                 _isBluetoothInputAvailable = TRUE;
                 break;
@@ -2398,39 +2754,205 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
             else
             {
                 //--------------------------------------------------------------------------------------
-                NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][routeChange] NEW >> OUTPUT: portName:%@ portType:%@",[availableInput portName], [availableInput portType]);
+                NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][isBluetoothInputAvailable] NEW >> OUTPUT: portName:%@ portType:%@",[availableInput portName], [availableInput portType]);
                 //--------------------------------------------------------------------------------------
             }
         }
     }else{
-        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][routeChange] CALLED: [outputs count] == 0");
+        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][isBluetoothInputAvailable] CALLED: [outputs count] == 0");
     }
     return _isBluetoothInputAvailable;
     
 }
 
-- (AVAudioSessionPortDescription *) findBluetoothInput {
-    AVAudioSessionPortDescription * _avAudioSessionPortDescription = NULL;
-     
-    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][findBluetoothInput] CALLED: [AVAudioSession sharedInstance].availableInputs):\r%@", [AVAudioSession sharedInstance].availableInputs);
-
+- (NSMutableArray *) findBluetoothInput {
     
-    //    2021-03-10 18:38:14.339802+0000 Seachat[839:51929] [VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][dump_allAudioRoutes] CALLED: [AVAudioSession sharedInstance].outputDataSources):
+    NSMutableArray * array_avAudioSessionPortDescription = [NSMutableArray array];
+     
+    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][findBluetoothInput] CALLED: [AVAudioSession sharedInstance].availableInputs):\r%@", [AVAudioSession sharedInstance].availableInputs);
+
+    //----------------------------------------------------------------------------------------------
+    //POSSIBLE RESULTS for .availableInputs
+    //----------------------------------------------------------------------------------------------
+    //    2021-03-10 18:38:14.339802+0000 Seachat[839:51929] [VIDEOPLUGIN][TwilioVideoViewController][AUDIO][dump_allAudioRoutes] CALLED: [AVAudioSession sharedInstance].outputDataSources):
     //    (
     //     )
-    //    2021-03-10 18:38:14.364644+0000 Seachat[839:51929] [VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][dump_allAudioRoutes] CALLED: [AVAudioSession sharedInstance].availableInputs):
+    //    2021-03-10 18:38:14.364644+0000 Seachat[839:51929] [VIDEOPLUGIN][TwilioVideoViewController][AUDIO][dump_allAudioRoutes] CALLED: [AVAudioSession sharedInstance].availableInputs):
     //    (
     //     "<AVAudioSessionPortDescription: 0x283b15df0, type = MicrophoneBuiltIn; name = iPhone Microphone; UID = Built-In Microphone; selectedDataSource = Front>",
     //     "<AVAudioSessionPortDescription: 0x283b15e60, type = BluetoothHFP; name = Brian\U2019s AirPods; UID = D4:90:9C:A3:A7:2B-tsco; selectedDataSource = (null)>"
     //     )
-    
-    
-    //    2021-03-10 18:38:53.559466+0000 Seachat[839:51929] [VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][dump_allAudioRoutes] CALLED: [AVAudioSession sharedInstance].availableInputs):
+    //----------------------------------------------------------------------------------------------
+    //
+    //----------------------------------------------------------------------------------------------
+    //    2021-03-10 18:38:53.559466+0000 Seachat[839:51929] [VIDEOPLUGIN][TwilioVideoViewController][AUDIO][dump_allAudioRoutes] CALLED: [AVAudioSession sharedInstance].availableInputs):
     //    (
     //     "<AVAudioSessionPortDescription: 0x283b09cc0, type = MicrophoneBuiltIn; name = iPhone Microphone; UID = Built-In Microphone; selectedDataSource = Front>",
     //     "<AVAudioSessionPortDescription: 0x283b0a470, type = BluetoothHFP; name = Brian\U2019s AirPods; UID = D4:90:9C:A3:A7:2B-tsco; selectedDataSource = (null)>"
     //     )
+    //----------------------------------------------------------------------------------------------
+    //POSSIBLE ISSUE - double Bluetooth headset
+    //----------------------------------------------------------------------------------------------
+    // I connected a bose bluetooth headset and Airpods
+    //in iOS audio picker list form Command Center it shows both
+    //but [AVAudioSession sharedInstance].availableInputs only shows LAST BLUETOOTH added
+    //if I add BOSE then AIRPODS - availableInputs show BOSE
+    //if I turn off BOSE         - availableInputs shows NO BLUETOOTH attached.
+    //NOTE - I tired again a few days later and got multiple bluetooth
+    //----------------------------------------------------------------------------------------------
+    // POSSIBLE - multiple bluetooth headphones
+    //    2021-03-16 17:34:32.481386+0000 Seachat[1378:283475] [VIDEOPLUGIN][TwilioVideoViewController][AUDIO][findBluetoothInput] CALLED: [AVAudioSession sharedInstance].availableInputs):
+    //    (
+    //     "<AVAudioSessionPortDescription: 0x283c28250, type = MicrophoneBuiltIn; name = iPhone Microphone; UID = Built-In Microphone; selectedDataSource = (null)>",
+    //     "<AVAudioSessionPortDescription: 0x283c29b10, type = BluetoothHFP; name = Bose QuietControl 30; UID = 2C:41:A1:E8:1B:A8-tsco; selectedDataSource = (null)>",
+    //     "<AVAudioSessionPortDescription: 0x283c296e0, type = BluetoothHFP; name = Brian\U2019s AirPods; UID = D4:90:9C:A3:A7:2B-tsco; selectedDataSource = (null)>"
+    //     )
+    //----------------------------------------------------------------------------------------------
     
+    //----------------------------------------------------------------------------------------------
+    //availableInputs
+    //----------------------------------------------------------------------------------------------
+    NSArray<AVAudioSessionPortDescription *> *availableInputs = [AVAudioSession sharedInstance].availableInputs;
+    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][findBluetoothInput] CALLED: [availableInputs count]:%ld", [availableInputs count]);
+    
+    if ([availableInputs count] > 0) {
+        //------------------------------------------------------------------------------------------
+        for (AVAudioSessionPortDescription *availableInput in availableInputs) {
+            
+            if ([[availableInput portType] isEqualToString:AVAudioSessionPortBluetoothA2DP] ||
+                [[availableInput portType] isEqualToString:AVAudioSessionPortBluetoothLE]   ||
+                [[availableInput portType] isEqualToString:AVAudioSessionPortBluetoothHFP]
+                )
+            {
+                //--------------------------------------------------------------------------------------
+                //BLUETOOTH
+                //--------------------------------------------------------------------------------------
+                // AVAudioSessionPortBluetoothA2DP - Output on a Bluetooth A2DP device //AIRPODS
+                // AVAudioSessionPortBluetoothLE   - Output on a Bluetooth Low Energy device
+                // AVAudioSessionPortBluetoothHFP  - Input or output on a Bluetooth Hands-Free Profile device
+                //----------------------------------------------------------------------------------
+                //EXAMPLES
+                //Airpods v1
+                //    "<AVAudioSessionPortDescription: 0x281cfc0f0, type = BluetoothA2DPOutput; name = Brian\U2019s AirPods; UID = D4:90:9C:A3:A7:2B-tacl; selectedDataSource = (null)>"
+                //----------------------------------------------------------------------------------
+                //bose Quiet Control
+                //NEW >> OUTPUT: portName:Bose QuietControl 30 portType:BluetoothHFP
+                //----------------------------------------------------------------------------------
+                
+                //----------------------------------------------------------------------------------
+                NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][findBluetoothInput] NEW >> FOUND BLUETOOTH :[portType:'%@']", [availableInput portType] );
+                //----------------------------------------------------------------------------------
+                [array_avAudioSessionPortDescription addObject:availableInput];
+                //----------------------------------------------------------------------------------
+            }
+            else
+            {
+                //--------------------------------------------------------------------------------------
+                NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][findBluetoothInput] NEW >> OUTPUT: portName:%@ portType:%@",[availableInput portName], [availableInput portType]);
+                //--------------------------------------------------------------------------------------
+            }
+        }
+    }else{
+        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][findBluetoothInput] CALLED: [outputs count] == 0");
+    }
+    return array_avAudioSessionPortDescription;
+    
+}
+
+
+//----------------------------------------------------------------------------------------
+//            // A port describes a specific type of audio input or output device or connector.
+//            AVAudioSessionPort
+//------------------------------------------------------------------------------------------
+//            /* input port types */
+//------------------------------------------------------------------------------------------
+//            // Line level input on a dock connector
+//            AVAudioSessionPortLineIn
+//
+//            // Built-in microphone on an iOS device
+//            AVAudioSessionPortBuiltInMic
+//
+//            // Microphone on a wired headset.  Headset refers to an accessory that has headphone outputs paired with a
+//            // microphone.
+//            AVAudioSessionPortHeadsetMic
+//------------------------------------------------------------------------------------------
+//            /* output port types */
+//
+//            // Line level output on a dock connector
+//            AVAudioSessionPortLineOut
+//
+//            // Headphone or headset output
+//            AVAudioSessionPortHeadphones
+//
+//            // Output on a Bluetooth A2DP device
+//            AVAudioSessionPortBluetoothA2DP
+//
+//            // The speaker you hold to your ear when on a phone call
+//            AVAudioSessionPortBuiltInReceiver
+//
+//            // Built-in speaker on an iOS device
+//            AVAudioSessionPortBuiltInSpeaker
+//
+//            // Output via High-Definition Multimedia Interface
+//            AVAudioSessionPortHDMI
+//
+//            // Output on a remote Air Play device
+//            AVAudioSessionPortAirPlay
+//------------------------------------------------------------------------------------------
+//            // Output on a Bluetooth Low Energy device
+//            AVAudioSessionPortBluetoothLE
+//
+//            /* port types that refer to either input or output */
+//
+//            // Input or output on a Bluetooth Hands-Free Profile device
+//            AVAudioSessionPortBluetoothHFP
+//
+//            // Input or output on a Universal Serial Bus device
+//            AVAudioSessionPortUSBAudio
+//
+//            // Input or output via Car Audio
+//            AVAudioSessionPortCarAudio
+//
+//            // Input or output that does not correspond to real audio hardware
+//            AVAudioSessionPortVirtual
+//
+//            // Input or output connected via the PCI (Peripheral Component Interconnect) bus
+//            AVAudioSessionPortPCI
+//
+//            // Input or output connected via FireWire
+//            AVAudioSessionPortFireWire
+//
+//            // Input or output connected via DisplayPort
+//            AVAudioSessionPortDisplayPort
+//
+//            // Input or output connected via AVB (Audio Video Bridging)
+//            AVAudioSessionPortAVB
+//
+//            // Input or output connected via Thunderbolt
+//            AVAudioSessionPortThunderbolt
+
+- (AVAudioSessionPortDescription *) findEarpieceInput {
+    AVAudioSessionPortDescription * _avAudioSessionPortDescription = NULL;
+    
+    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][findEarpieceInput:] CALLED: [AVAudioSession sharedInstance].availableInputs):\r%@", [AVAudioSession sharedInstance].availableInputs);
+    //----------------------------------------------------------------------------------------------
+    //EXAMPLES
+    //----------------------------------------------------------------------------------------------
+    //    2021-03-10 18:38:14.339802+0000 Seachat[839:51929] [VIDEOPLUGIN][TwilioVideoViewController][AUDIO][dump_allAudioRoutes] CALLED: [AVAudioSession sharedInstance].outputDataSources):
+    //    (
+    //     )
+    //    2021-03-10 18:38:14.364644+0000 Seachat[839:51929] [VIDEOPLUGIN][TwilioVideoViewController][AUDIO][dump_allAudioRoutes] CALLED: [AVAudioSession sharedInstance].availableInputs):
+    //    (
+    //     "<AVAudioSessionPortDescription: 0x283b15df0, type = MicrophoneBuiltIn; name = iPhone Microphone; UID = Built-In Microphone; selectedDataSource = Front>",
+    //     "<AVAudioSessionPortDescription: 0x283b15e60, type = BluetoothHFP; name = Brian\U2019s AirPods; UID = D4:90:9C:A3:A7:2B-tsco; selectedDataSource = (null)>"
+    //     )
+    //----------------------------------------------------------------------------------------------
+    //    2021-03-10 18:38:53.559466+0000 Seachat[839:51929] [VIDEOPLUGIN][TwilioVideoViewController][AUDIO][dump_allAudioRoutes] CALLED: [AVAudioSession sharedInstance].availableInputs):
+    //    (
+    //     "<AVAudioSessionPortDescription: 0x283b09cc0, type = MicrophoneBuiltIn; name = iPhone Microphone; UID = Built-In Microphone; selectedDataSource = Front>",
+    //     "<AVAudioSessionPortDescription: 0x283b0a470, type = BluetoothHFP; name = Brian\U2019s AirPods; UID = D4:90:9C:A3:A7:2B-tsco; selectedDataSource = (null)>"
+    //     )
+    //----------------------------------------------------------------------------------------------
     
     //----------------------------------------------------------------------------------------
     //KNOWN ISSUE - double Bluetooth headset
@@ -2447,15 +2969,44 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
     //availableInputs
     //----------------------------------------------------------------------------------------------
     NSArray<AVAudioSessionPortDescription *> *availableInputs = [AVAudioSession sharedInstance].availableInputs;
-    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][isBluetoothInputAvailable] CALLED: [availableInputs count]:%ld", [availableInputs count]);
+    NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][findEarpieceInput] CALLED: [availableInputs count]:%ld", [availableInputs count]);
     
     if ([availableInputs count] > 0) {
+    
         //------------------------------------------------------------------------------------------
         for (AVAudioSessionPortDescription *availableInput in availableInputs) {
+            NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] [findEarpieceInput] FOUND availableInput:%@", availableInput);
             
-            if ([[availableInput portType] isEqualToString:AVAudioSessionPortBluetoothA2DP] ||
-                [[availableInput portType] isEqualToString:AVAudioSessionPortBluetoothLE]   ||
-                [[availableInput portType] isEqualToString:AVAudioSessionPortBluetoothHFP]
+            //--------------------------------------------------------------------------------------
+            //    "<AVAudioSessionPortDescription: 0x281196300, type = MicrophoneBuiltIn; name = iPhone Microphone; UID = Built-In Microphone; selectedDataSource = (null)>"
+            if ([[availableInput portType] isEqualToString:AVAudioSessionPortBuiltInMic]) {
+                //----------------------------------------------------------------------------------
+                //MicrophoneBuiltIn
+                //----------------------------------------------------------------------------------
+                NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][findEarpieceInput] - NO - AVAudioSessionPortBuiltInMic - 'MicrophoneBuiltIn' - EARPIECE");
+                
+                _avAudioSessionPortDescription = availableInput;
+                break;
+                
+            } else if ([[availableInput portType] isEqualToString:AVAudioSessionPortBuiltInReceiver]) {
+                //----------------------------------------------------------------------------------
+                //EARPIERCE / Receiver / iPhone
+                //----------------------------------------------------------------------------------
+                NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][findEarpieceInput] - NO - AVAudioSessionPortBuiltInReceiver - EARPIECE");
+                
+                _avAudioSessionPortDescription = availableInput;
+                break;
+            }
+            else if ([[availableInput portType] isEqualToString:AVAudioSessionPortBuiltInSpeaker]) {
+                //--------------------------------------------------------------------------------------
+                //Speaker
+                //--------------------------------------------------------------------------------------
+                NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][findEarpieceInput] - NO - AVAudioSessionPortBuiltInSpeaker - SPEAKER");
+                //--------------------------------------------------------------------------------------
+            }
+            else if ([[availableInput portType] isEqualToString:AVAudioSessionPortBluetoothA2DP] ||
+                     [[availableInput portType] isEqualToString:AVAudioSessionPortBluetoothLE]   ||
+                     [[availableInput portType] isEqualToString:AVAudioSessionPortBluetoothHFP]
                 )
             {
                 //--------------------------------------------------------------------------------------
@@ -2474,21 +3025,20 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
                 //--------------------------------------------------------------------------------------
                 
                 //--------------------------------------------------------------------------------------
-                NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][isBluetoothInputAvailable] NEW >> FOUND BLUETOOTH :[portType:'%@']", [availableInput portType] );
+                NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][findEarpieceInput] NEW >> FOUND BLUETOOTH :[portType:'%@']", [availableInput portType] );
                 //--------------------------------------------------------------------------------------
-                _avAudioSessionPortDescription = availableInput;
-                break;
+               
                 //--------------------------------------------------------------------------------------
             }
             else
             {
                 //--------------------------------------------------------------------------------------
-                NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][routeChange] NEW >> OUTPUT: portName:%@ portType:%@",[availableInput portName], [availableInput portType]);
+                NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][findEarpieceInput] NEW >> OUTPUT: portName:%@ portType:%@",[availableInput portName], [availableInput portType]);
                 //--------------------------------------------------------------------------------------
             }
         }
     }else{
-        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController.m][AUDIO][routeChange] CALLED: [outputs count] == 0");
+        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController][AUDIO][findEarpieceInput] CALLED: [outputs count] == 0");
     }
     return _avAudioSessionPortDescription;
     
@@ -2889,7 +3439,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
 -(void)participantDidConnect_RemoteUserSide_CallerHasEnteredTheRoom{
     [self log_info:@"[participantDidConnect_RemoteUserSide_CallerHasEnteredTheRoom] START"];
 
-    [self dialing_sound_stop];
+    [self dialing_sound_stop_enableSwitchAudioButton];
 
     if(self.previewIsFullScreen){
         //hide Waiting...
@@ -2914,7 +3464,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
 -(void)participantDidConnect_LocalUserAndCallerHaveConnectedToRoom_StartTalking{
     [self log_info:@"[participantDidConnect_LocalUserAndCallerHaveConnectedToRoom_StartTalking] START"];
     
-    [self dialing_sound_stop];
+    [self dialing_sound_stop_enableSwitchAudioButton];
     
     if(self.previewIsFullScreen){
         
@@ -3762,9 +4312,12 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
 -(void)viewWillDisappear:(BOOL)animated{
     [super viewWillDisappear: animated];
     
+    //ISSUE with mp3 stuck playing after this VC disappears
+    [self dialing_sound_stop];
+    
     [self viewWillDisappear_TurnOffOrientationsNotifications];
     
-    [self log_debug:@"[TwilioVideoViewController.m] viewWillDisappear CALLED - DOES NOTHING"];
+    [self log_debug:@"[TwilioVideoViewController] viewWillDisappear CALLED - DOES NOTHING"];
 
 }
 
@@ -3776,10 +4329,10 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
 //triggers viewWillDisappear - this was calling stopCaptureWithCompletion and killing the locak camera feed in the thubnail
 -(void)view_isDisappearing_shutdown{
  
-    [self log_debug:@"[TwilioVideoViewController.m] viewWillDisappear CALLED - DOES NOTHING"];
+    [self log_debug:@"[TwilioVideoViewController] viewWillDisappear CALLED - DOES NOTHING"];
     //if user disconnects while waiting for remote user to answer
     //also when you do BACK TO CALL > Attach a file > attach a photo from phot libaray or photo from taking a pic it triggers viewWillDisappear
-    [self dialing_sound_stop];
+    [self dialing_sound_stop_enableSwitchAudioButton];
 
     //Strange issue where first time was quiet but 2nd, 3rd loud
     //i think maybe multiple players?
@@ -3788,19 +4341,19 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
     //---------------------------------------------------------
     [self removeAudioLevelsMonitoringTimer];
     //---------------------------------------------------------
-    [self log_debug:@"[TwilioVideoViewController.m] viewWillDisappear >> stopCaptureWithCompletion"];
+    [self log_debug:@"[TwilioVideoViewController] viewWillDisappear >> stopCaptureWithCompletion"];
     [self.camera stopCaptureWithCompletion:^(NSError * _Nullable error) {
         if(error){
-            [self log_debug:[NSString stringWithFormat:@"[TwilioVideoViewController.m] stopCaptureWithCompletion: >> error:%@", error]];
+            [self log_debug:[NSString stringWithFormat:@"[TwilioVideoViewController] stopCaptureWithCompletion: >> error:%@", error]];
         }else{
-            [self log_debug:@"[TwilioVideoViewController.m] stopCaptureWithCompletion: OK"];
+            [self log_debug:@"[TwilioVideoViewController] stopCaptureWithCompletion: OK"];
         }
     }];
 
-    [self log_debug:@"[TwilioVideoViewController.m] viewWillDisappear >> stopProximitySensor"];
+    [self log_debug:@"[TwilioVideoViewController] viewWillDisappear >> stopProximitySensor"];
     [self disable_proximityMonitoring_and_removeObserver];
 
-    [self log_info:@"[TwilioVideoViewController.m] viewWillDisappear - VIEW CONTROLLER closed"];
+    [self log_info:@"[TwilioVideoViewController] viewWillDisappear - VIEW CONTROLLER closed"];
     
     //REQUIRED else twilio crashes on 2nd calls
     //WebRTC does not allow updating the audio device once the media stack is created
@@ -3876,9 +4429,13 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
         if([audioPlayer isPlaying]){
             [self log_debug:@"[AUDIO][dialing_sound_start] [audioPlayer isPlaying] is TRUE - DONT start another one you get a VERY loud audio"];
         }else{
-           
+            //--------------------------------------------------------------------------------------
+            //LOOP
+            //--------------------------------------------------------------------------------------
+            //should ring till its stopped but issue with this VC disappearing and it keeps ringing
+            //[audioPlayer setNumberOfLoops: -1]; // -1 plays forever till its [ .. stop]
+            [audioPlayer setNumberOfLoops: 1];    // ringin.mp3 is 36 secs long - no answer is 30secs
             
-            [audioPlayer setNumberOfLoops: -1]; // -1 plays forever till its [ .. stop]
             //--------------------------------------------------------------------------------------
             [self log_debug:@"[AUDIO][dialing_sound_start]  BEFORE dumpCurrentAudioSession:"];
             [self dumpCurrentAudioSession];
@@ -3886,7 +4443,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
             [audioPlayer setVolume:1.0];
             //--------------------------------------------------------------------------------------
             [audioPlayer play];
-            
+            //BLUETOOTHALERTSHEET
             //[self.viewAudioWrapper setHidden:TRUE];
             [self disableSwitchAudio];
             
@@ -3913,13 +4470,30 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
     }
 }
 
+-(void) dialing_sound_stop_enableSwitchAudioButton{
+    if (audioPlayer) {
+        [self log_debug:@"[AUDIO][dialing_sound_stop_enableSwitchAudioButton] >> [audioPlayer stop]"];
+        
+        [audioPlayer stop];
+		
+        //BLUETOOTHALERTSHEET
+        [self log_debug:@"[AUDIO][dialing_sound_stop_enableSwitchAudioButton] >> [self enableSwitchAudio]"];
+        
+        [self enableSwitchAudio];
+        
+        [self removeAudioLevelsMonitoringTimer];
+    }else{
+        [self log_error:@"[dialing_sound_stop_enableSwitchAudioButton] audioPlayer is NULL [audioPlayer stop] FAILED"];
+    }
+}
+
+//called in ViewWillDisappear - issue with mp3 stuck playing after this VC disappears
 -(void) dialing_sound_stop{
     if (audioPlayer) {
         [self log_debug:@"[AUDIO][dialing_sound_stop] >> [audioPlayer stop]"];
         
         [audioPlayer stop];
-        [self enableSwitchAudio];
-        [self removeAudioLevelsMonitoringTimer];
+        
     }else{
         [self log_error:@"[dialing_sound_stop] audioPlayer is NULL [audioPlayer stop] FAILED"];
     }
@@ -3933,7 +4507,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
 - (void)initializeAudioLevelsMonitoringTimer
 {
     if(NULL != self.levelTimer){
-        NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController.m] initializeAudioLevelsMonitoringTimer: is NOT NULL - dont call twice");
+        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] initializeAudioLevelsMonitoringTimer: is NOT NULL - dont call twice");
     }else{
         self.levelTimer = [NSTimer scheduledTimerWithTimeInterval: 0.03 target: self selector: @selector(levelTimerCallback:) userInfo: nil repeats: YES];
     }
@@ -3944,7 +4518,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
         [self.levelTimer invalidate];
         self.levelTimer = NULL;
     }else{
-        NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController.m] removeAudioLevelsMonitoringTimer:  self.levelTimeris NULL");
+        NSLog(@"[VIDEOPLUGIN][TwilioVideoViewController] removeAudioLevelsMonitoringTimer:  self.levelTimeris NULL");
     }
 }
 
@@ -3987,6 +4561,7 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
     //        NSLog(@"[AUDIO][dumpCurrentAudioSession] audioPlayer is NULL");
     //    }
 }
+
 -(void) dialing_sound_set_volume{
     
     NSLog(@"[AUDIO][dialing_sound_set_volume] BEFORE ********");
@@ -4055,8 +4630,6 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
         
     }
 }
-
-
 
 
 - (void)didReceiveMemoryWarning {
