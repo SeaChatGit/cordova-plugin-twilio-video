@@ -3633,6 +3633,46 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
         builder.audioTracks = self.localAudioTrack ? @[ self.localAudioTrack ] : @[ ];
         builder.videoTracks = self.localVideoTrack ? @[ self.localVideoTrack ] : @[ ];
         
+        // @param maxAudioBitrate The maximum audio send bitrate in Kilobits per second (Kbps).
+        //  @param maxVideoBitrate The maximum video send bitrate in Kilobits per second (Kbps).
+        
+        //builder.encodingParameters = [[TVIEncodingParameters alloc] initWithAudioBitrate:40 videoBitrate:1500];
+        //builder.encodingParameters = [[TVIEncodingParameters alloc] initWithAudioBitrate:510000 videoBitrate:2000000];
+        builder.encodingParameters = [[TVIEncodingParameters alloc] initWithAudioBitrate:128000 videoBitrate:2000000];
+
+        
+        /**
+          * @brief Maximum audio send bitrate in Kilobits per second.
+          
+          * @discussion Zero indicates the WebRTC default value, which is codec dependent.
+          * The maximum bitrate for [Opus](http://opus-codec.org/) is 510 Kbps.
+          /
+         @property (nonatomic, assign, readonly) NSUInteger maxAudioBitrate;
+         
+         /
+          * @brief Maximum video send bitrate in Kilobits per second.
+          *
+          * @discussion Zero indicates the WebRTC default value, which is 2000 Kbps.
+          */
+        //@property (nonatomic, assign, readonly) NSUInteger maxVideoBitrate;
+        
+        
+        
+        
+        //------------------------------------------------------------------------------------------
+        [builder setNetworkQualityEnabled:TRUE];
+        //------------------------------------------------------------------------------------------
+        //        builder.networkQualityConfiguration = NetworkQualityConfiguration(localVerbosity: .minimal,
+        //                                                                          remoteVerbosity: .minimal)
+
+        TVINetworkQualityConfiguration *tviNetworkQualityConfiguration
+        = [[TVINetworkQualityConfiguration alloc]initWithLocalVerbosity:TVINetworkQualityVerbosityMinimal
+                                                     remoteVerbosity:TVINetworkQualityVerbosityMinimal];
+        
+        [builder setNetworkQualityConfiguration:tviNetworkQualityConfiguration];
+        //------------------------------------------------------------------------------------------
+        
+        NSLog(@"");
     }];
     //--------------------------------------------------------------------------
     // Connect to the Room using the options we provided.
@@ -3943,6 +3983,21 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
     dispatch_async(dispatch_get_main_queue(), ^{
         [self log_debug:@"[TwilioVideoViewController] [TVIRoomDelegate.didConnectToRoom] >> GET FIRST room.remoteParticipants[0]"];
         
+        NSLog(@"[TwilioVideoViewController.m][didConnectToRoom]room.mediaRegion:%@", room.mediaRegion);
+        //NSLog(@"[TwilioVideoViewController.m][didConnectToRoom]room.mediaRegion:%@", room.);
+
+        if(NULL != room){
+            if(NULL != room.localParticipant){
+                room.localParticipant.delegate = self;
+                
+            }else{
+                NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController] didConnectToRoom: room is NULL");
+            }
+        }else{
+            NSLog(@"[VOIPVIDEOPLUGIN][TwilioVideoViewController] didConnectToRoom: room is NULL");
+        }
+        
+        
         // At the moment, this example only supports rendering one Participant at a time.
         [self log_info:[NSString stringWithFormat:@"[didConnectToRoom] Connected to room %@ as %@", room.name, room.localParticipant.identity]];
         [[TwilioVideoManager getInstance] publishEvent: CONNECTED];
@@ -4226,6 +4281,95 @@ static NSInteger _twilioAudioConfiguredOnce = FALSE;
     
     [self update_imageViewInCallRemoteMicMuteState_isMuted:TRUE];
 }
+
+#pragma mark -
+#pragma mark TVILocalParticipantDelegate
+#pragma mark -
+
+/**
+ * @brief Delegate method called when the Local Participant successfully publishes an audio track.
+ *
+ * @param participant The local participant.
+ * @param audioTrackPublication The `TVILocalAudioTrackPublication` object.
+ */
+- (void)localParticipant:(nonnull TVILocalParticipant *)participant didPublishAudioTrack:(nonnull TVILocalAudioTrackPublication *)audioTrackPublication{
+    NSLog(@"[TwilioVideoViewController.m] localParticipant:didPublishAudioTrack:");
+}
+
+
+/**
+ * @brief Delegate method called when the publication of an audio track fails.
+ *
+ * @param participant The local participant.
+ * @param audioTrack The audio track that failed publication.
+ * @param error An `NSError` object describing the reason for the failure.
+ */
+- (void)localParticipant:(nonnull TVILocalParticipant *)participant
+didFailToPublishAudioTrack:(nonnull TVILocalAudioTrack *)audioTrack
+               withError:(nonnull NSError *)error{
+    NSLog(@"[TwilioVideoViewController.m] localParticipant:didFailToPublishAudioTrack: error:%@", error);
+}
+
+/**
+ * @brief Delegate method called when the Local Participant successfully publishes a data track.
+ *
+ * @param participant The local participant.
+ * @param dataTrackPublication The `TVILocalDataTrackPublication` object.
+ */
+- (void)localParticipant:(nonnull TVILocalParticipant *)participant didPublishDataTrack:(nonnull TVILocalDataTrackPublication *)dataTrackPublication{
+    NSLog(@"[TwilioVideoViewController.m] localParticipant:didPublishDataTrack:");
+}
+
+/**
+ * @brief Delegate method called when the publication of a data track fails.
+ *
+ * @param participant The local participant.
+ * @param dataTrack The data track that failed publication.
+ * @param error An `NSError` object describing the reason for the failure.
+ */
+- (void)localParticipant:(nonnull TVILocalParticipant *)participant
+didFailToPublishDataTrack:(nonnull TVILocalDataTrack *)dataTrack
+               withError:(nonnull NSError *)error{
+    NSLog(@"[TwilioVideoViewController.m] localParticipant:didFailToPublishDataTrack:: error:%@", error);
+}
+
+/**
+ * @brief Delegate method called when the Local Participant successfully publishes a video track.
+ *
+ * @param participant The local participant.
+ * @param videoTrackPublication The `TVILocalVideoTrackPublication` object.
+ */
+- (void)localParticipant:(nonnull TVILocalParticipant *)participant didPublishVideoTrack:(nonnull TVILocalVideoTrackPublication *)videoTrackPublication{
+    NSLog(@"[TwilioVideoViewController.m] localParticipant:didPublishVideoTrack:");
+}
+
+/**
+ * @brief Delegate method called when the publication of a video track fails.
+ *
+ * @param participant The local participant.
+ * @param videoTrack The video track that failed publication.
+ * @param error An `NSError` object describing the reason for the failure.
+ */
+- (void)localParticipant:(nonnull TVILocalParticipant *)participant
+didFailToPublishVideoTrack:(nonnull TVILocalVideoTrack *)videoTrack
+               withError:(nonnull NSError *)error{
+    NSLog(@"[TwilioVideoViewController.m] localParticipant:didFailToPublishVideoTrack: error:%@", error);
+}
+
+/**
+ * @brief Delegate method called when the Local Participant's `networkQualityLevel` has changed.
+ *
+ * @param participant The local participant.
+ * @param networkQualityLevel The new Network Quality Level.
+ */
+- (void)localParticipant:(nonnull TVILocalParticipant *)participant networkQualityLevelDidChange:(TVINetworkQualityLevel)networkQualityLevel{
+    NSLog(@"[TwilioVideoViewController.m] localParticipant:networkQualityLevelDidChange: networkQualityLevel:%ld", (long)networkQualityLevel);
+    NSLog(@"");
+}
+
+
+
+
 
 #pragma mark -
 #pragma mark VIDEO TRACK on/off
